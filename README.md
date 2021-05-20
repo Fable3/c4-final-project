@@ -6,7 +6,17 @@ Implementing a simple TODO application using AWS Lambda and Serverless framework
 
 Using the free service of auth0.com, I've registered a new application for my domain, named TODOApp. In the advanced settings/JWT type I've selected the RS256 and downloaded my certificate. I've set the callback URL to http://localhost:3000/callback to receive the authentication data (user (sub) id, token), and the Allowed Web Origins to http://localhost:3000 to allow connection. The domain and client id values saved in client/config.ts.
 
+For token verification in backend/src/lambda/auth/auth0Authorizer.ts, I've set the certificate URL and followed the guide in https://auth0.com/blog/navigating-rs256-and-jwks/ and in https://github.com/auth0/node-jwks-rsa/blob/master/examples/express-demo/README.md
 
+Next I filled all the functions with mock data, and filled out the serverless.yml file with resource definitions for S3 and DynamoDB table structure.
+
+After successful deployment, I copied the API Gateway ID to client/src/config.ts
+
+The frontend `npm install` failed on a file rename, I suspect Visual Code in the background was parsing the files during setup. Closed VC, deleted package-lock.json and node_modules, and re-run the install successfully.
+
+After frontend login, I got CORS errors, which was caused by missing `cors: true` for all the API calls.
+
+The frontend now shows the mock data. Interestingly, the delete button works already, due to smart code on the client side.
 
 # Functionality of the application
 
