@@ -3,12 +3,56 @@ import 'source-map-support/register'
 import { APIGatewayProxyEvent, APIGatewayProxyHandler, APIGatewayProxyResult } from 'aws-lambda'
 
 import { CreateTodoRequest } from '../../requests/CreateTodoRequest'
+import { getUserId } from '../utils'
+import { createTodoItem } from '../../aws_access/createTodo'
+
+//import * as AWS  from 'aws-sdk' -> moved to aws_access
 
 export const handler: APIGatewayProxyHandler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   const newTodo: CreateTodoRequest = JSON.parse(event.body)
-  console.log('newTodo', newTodo)
+  const userId: string = getUserId(event)
+  console.log('newTodo', { userId, newTodo})
+  if (!userId) {
+    return {
+      statusCode: 404,
+      headers: {
+        'Access-Control-Allow-Origin': '*'
+      },
+      body: JSON.stringify({
+        error: 'Invalid userId'
+      })
+    }
+  }
 
-  // TODO: Implement creating a new TODO item
+  if (!newTodo.name) {
+    return {
+      statusCode: 404,
+      headers: {
+        'Access-Control-Allow-Origin': '*'
+      },
+      body: JSON.stringify({
+        error: 'Invalid name'
+      })
+    }
+  }
+  if (!newTodo.dueDate) {
+    return {
+      statusCode: 404,
+      headers: {
+        'Access-Control-Allow-Origin': '*'
+      },
+      body: JSON.stringify({
+        error: 'Invalid dueDate'
+      })
+    }
+  }
+
+  const db_result = {
+    item: await createTodoItem(userId, newTodo)
+  }
+  
+  // DONE: Implement creating a new TODO item
+  /* Mock data:
   const db_result = {
     "item": {
       "todoId": "123",
@@ -18,7 +62,8 @@ export const handler: APIGatewayProxyHandler = async (event: APIGatewayProxyEven
       "done": false,
       "attachmentUrl": "http://example.com/image.png"
     }
-  }
+  }*/
+  
   return  {
     statusCode: 201,
     headers: {

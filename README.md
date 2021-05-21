@@ -6,7 +6,7 @@ Implementing a simple TODO application using AWS Lambda and Serverless framework
 
 Using the free service of auth0.com, I've registered a new application for my domain, named TODOApp. In the advanced settings/JWT type I've selected the RS256 and downloaded my certificate. I've set the callback URL to http://localhost:3000/callback to receive the authentication data (user (sub) id, token), and the Allowed Web Origins to http://localhost:3000 to allow connection. The domain and client id values saved in client/config.ts.
 
-For token verification in backend/src/lambda/auth/auth0Authorizer.ts, I've set the certificate URL and followed the guide in https://auth0.com/blog/navigating-rs256-and-jwks/ and in https://github.com/auth0/node-jwks-rsa/blob/master/examples/express-demo/README.md
+For token verification in backend/src/lambda/auth/auth0Authorizer.ts, I've set the certificate URL and followed the guide in https://auth0.com/blog/navigating-rs256-and-jwks/ and in https://github.com/auth0/node-jwks-rsa/blob/master/examples/express-demo/README.md. However the JSON file also has my other certificates, for the Udagram app, so later I changed back to include it in the source code.
 
 Next I filled all the functions with mock data, and filled out the serverless.yml file with resource definitions for S3 and DynamoDB table structure.
 
@@ -17,6 +17,90 @@ The frontend `npm install` failed on a file rename, I suspect Visual Code in the
 After frontend login, I got CORS errors, which was caused by missing `cors: true` for all the API calls.
 
 The frontend now shows the mock data. Interestingly, the delete button works already, due to smart code on the client side.
+
+Since I log all functions, I could already check in CloudWatch that all functions receive correct parameters. Authorization is not tested at this moment yet, because it's not yet configured. The UserId can be read from the authorization header, so next I implemented the functions using DynamoDB table.
+
+First function has to be of course the createTodoItem. I've moved the DynamoDB specific functions to a new file, business_logic/createTodoItem.ts. When testing the new functionality, I got CORS error, but inspecting the headers revealed `InternalServerErrorException` in the header, so the CORS header was only missing because of an earlier exception.
+
+From CloudWatch: `"errorMessage": "User: arn:aws:sts::447830847150:assumed-role/serverless-todo-app-dev-us-east-1-lambdaRole/serverless-todo-app-dev-CreateTodo is not authorized to perform: dynamodb:PutItem on resource: arn:aws:dynamodb:us-east-1:447830847150:table/Todos-dev"`
+
+Since using `serverless-iam-roles-per-function` I added the following to the `CreateTodos` function:
+
+```yaml
+iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - dynamodb:PutItem
+      Resource: arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.TODOS_TABLE}
+```
+
+The deploy function failed with an error, Knowledge base suggested updating the package:
+
+`npm i serverless-iam-roles-per-function@next`
+
+The package.json was updated to: `"serverless-iam-roles-per-function": "^3.2.0-e97ab49",`
+
+The client was working already, showing the new item, but of course, the new item vanished after refresh, so the next step was to implement GetTodos.
+
+The implementation was straight forward, but the client got empty response. CloudWatch revealed `ERROR	(node:8) [DEP0005] DeprecationWarning: Buffer() is deprecated due to security and usability issues. Please use the Buffer.alloc(), Buffer.allocUnsafe(), or Buffer.from() methods instead.`
+
+The issue was with missing `await`here:
+
+```typescript
+const db_result = {
+    items: await getTodoItems(userId)
+  }
+```
+
+Next error: `    "errorMessage": "User: arn:aws:sts::447830847150:assumed-role/serverless-todo-app-dev-GetTodos-us-east-1-lambdaRole/serverless-todo-app-dev-GetTodos is not authorized to perform: dynamodb:Query on resource: arn:aws:dynamodb:us-east-1:447830847150:table/Todos-dev/index/UserIdIndex",`
+
+For the solution I used the example in Course 5, and added IamPolicy for the `Resource: arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.TODOS_TABLE}/index/${self:provider.environment.USER_ID_INDEX}`
+
+The item created previously was now listed in the browser.
+
+Next was the delete item. The first error in CloudWatch was ` "errorMessage": "The provided key element does not match the schema"`
+
+The problem here was described here: https://stackoverflow.com/questions/34259358/dynamodb-delete-all-items-having-same-hash-key
+
+The solution was to include the RANGE key as well to make the record unique, which would have been dueDate in this case, since I originally added dueDate as RANGE key. When I deleted the RANGE key, deployment failed, so I deleted the table manually, and renamed the table as the CloudFront error suggested. After successful deployment, I renamed the table back to the original.
+
+After implementing UpdateTodo, it didn't update the database, and I couldn't find any error message in CloudWatch. Searching the Knowledge Base I found that "name" attribute was replaced with ExpressionAttributeName, so I implemented it as well, but it didn't help. Logging the result revealed that I simply forgot to add ".promise()" to the end of the update call. After fixing, I could see the "done" flag updating in DynamoDB on AWS Console.
+
+The last function was `GenerateUploadUrl`, I used the signed URL creation routine from the course 5, and the update from UpdateTodo in one function in `business_logic/GenerateUploadURL.ts`. I've set both dynamodb:UpdateItem and s3:PutObject in the iamRoleStatements of the lamda function. This one worked on first try.
+
+## Project Rubric
+
+#### Functionality
+
+```
+The application allows users to create, update, delete TODO items
+A user of the web application can use the interface to create, delete and complete a TODO item.
+```
+
+I've tested the functionality through the frontend during development, and also in the DynamoDB AWS Console, as described in the development process. The frontend can be started locally with `npm run start`
+
+```
+The application allows users to upload a file.
+A user of the web interface can click on a "pencil" button, then select and upload a file. A file should appear in the list of TODO items on the home page.
+```
+
+Here's a screenshot after uploading an attachment
+
+![client screenshot](client_screenshot.png)
+
+```
+The application only displays TODO items for a logged in user.
+If you log out from a current user and log in as a different user, the application should not show TODO items created by the first account.
+```
+
+
+
+```
+Authentication is implemented and does not allow unauthenticated access.
+A user needs to authenticate in order to use an application.
+```
+
+Authentication is implemented in backend/src/lamda/auth/auth0authorization.ts
 
 # Functionality of the application
 

@@ -1,9 +1,14 @@
 import 'source-map-support/register'
 
 import { APIGatewayProxyEvent, APIGatewayProxyResult, APIGatewayProxyHandler } from 'aws-lambda'
+import { getUserId } from '../utils'
+import { getTodoItems} from '../../aws_access/getTodo'
+
 
 export const handler: APIGatewayProxyHandler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
-  console.log('getTodos event', event)
+  const userId: string = getUserId(event)
+  console.log('getTodos event',{ userId,event})
+  /* mock:
   const db_result = {
     "items": [
       {
@@ -23,6 +28,9 @@ export const handler: APIGatewayProxyHandler = async (event: APIGatewayProxyEven
         "attachmentUrl": "http://example.com/image.png"
       },
     ]
+  }*/
+  const db_result = {
+    items: await getTodoItems(userId)
   }
 
   return  {
