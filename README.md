@@ -70,6 +70,34 @@ The last function was `GenerateUploadUrl`, I used the signed URL creation routin
 
 Next step was to enable authorization for all functions. The first try reported `error:0909006C:PEM routines:get_name:no start line` in CloudWatch. I've fixed the new-lines in the certificate and it was working afterwards.
 
+Next, I've set up request validator. I first tried with the plugin. For CreateTodoRequest and UpdateTodoRequest, I've created json files in model, set up a new resource, and linked the json files to the model names in the custom section. In the Knowledge Base it was suggested to have a minimum 3 characters for the name, so I included that too. I tried to create a 2-character long TODO item, and it was successful, so something didn't work. I realized I got warnings in the deployment:
+
+```
+Serverless: Configuration warning:
+Serverless:   at 'functions.CreateTodo.events[0].http': unrecognized property 'reqValidatorName'
+Serverless:   at 'functions.CreateTodo.events[0].http': unrecognized property 'documentation'
+Serverless:   at 'functions.UpdateTodo.events[0].http': unrecognized property 'reqValidatorName'
+Serverless:   at 'functions.UpdateTodo.events[0].http': unrecognized property 'documentation'
+```
+
+After searching for solution, I found that the plugin is no longer needed for serverless, and it's much simpler now:
+
+```yaml
+CreateTodo:
+    handler: src/lambda/http/createTodo.handler
+    events:
+      - http:
+          method: post
+          path: todos
+          cors: true
+          authorizer: Auth
+          request:
+            schema:
+              application/json: ${file(models/create-todo-request.json)}
+```
+
+After deployment, 2-character long name was denied, 3 character was accepted.
+
 ## Project Rubric
 
 #### Functionality
