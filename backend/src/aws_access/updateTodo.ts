@@ -4,8 +4,12 @@ import { UpdateTodoRequest } from '../requests/UpdateTodoRequest'
 const docClient = new AWS.DynamoDB.DocumentClient()
 const todosTable = process.env.TODOS_TABLE
 
+import { createLogger } from '../utils/logger'
+const logger = createLogger('updateTODO')
+
+
 export const updateTodoItem = async (todoId: string, updatedTodoItem: UpdateTodoRequest) => {
-    console.log("updateTodoItem", {todoId, updatedTodoItem})
+    logger.info("updateTodoItem", {todoId, updatedTodoItem})
     const result = await docClient.update({
         TableName: todosTable,
         Key: {
@@ -21,5 +25,5 @@ export const updateTodoItem = async (todoId: string, updatedTodoItem: UpdateTodo
             ":done": updatedTodoItem.done
         }
     }).promise()
-    console.log("update result", result);
+    logger.info("update result", result);
 }

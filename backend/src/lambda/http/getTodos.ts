@@ -5,9 +5,12 @@ import { getUserId } from '../utils'
 import { getTodoItems} from '../../aws_access/getTodo'
 
 
+import { createLogger } from '../../utils/logger'
+const logger = createLogger('getTODOs')
+
 export const handler: APIGatewayProxyHandler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   const userId: string = getUserId(event)
-  console.log('getTodos event',{ userId,event})
+  logger.info('getTodos',{ userId,event})
   /* mock:
   const db_result = {
     "items": [
@@ -32,6 +35,7 @@ export const handler: APIGatewayProxyHandler = async (event: APIGatewayProxyEven
   const db_result = {
     items: await getTodoItems(userId)
   }
+  logger.info('result', db_result);
 
   return  {
     statusCode: 200,

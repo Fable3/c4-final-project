@@ -7,11 +7,13 @@ import { getUserId } from '../utils'
 import { createTodoItem } from '../../aws_access/createTodo'
 
 //import * as AWS  from 'aws-sdk' -> moved to aws_access
+import { createLogger } from '../../utils/logger'
+const logger = createLogger('createTODO')
 
 export const handler: APIGatewayProxyHandler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   const newTodo: CreateTodoRequest = JSON.parse(event.body)
   const userId: string = getUserId(event)
-  console.log('newTodo', { userId, newTodo})
+  logger.info('newTodo', { userId, newTodo})
   if (!userId) {
     return {
       statusCode: 404,

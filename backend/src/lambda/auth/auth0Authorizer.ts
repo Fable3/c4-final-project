@@ -3,10 +3,8 @@ import 'source-map-support/register'
 
 import { verify, decode } from 'jsonwebtoken'
 import { createLogger } from '../../utils/logger'
-//import Axios from 'axios'
 import { Jwt } from '../../auth/Jwt'
 import { JwtPayload } from '../../auth/JwtPayload'
-//import { expressJwtSecret }  from 'jwks-rsa'
 
 const logger = createLogger('auth')
 
@@ -33,7 +31,6 @@ FfLVYBY=\n\
 // DONE: Provide a URL that can be used to download a certificate that can be used
 // to verify JWT token signature.
 // To get this URL you need to go to an Auth0 page -> Show Advanced Settings -> Endpoints -> JSON Web Key Set
-const jwksUrl = 'https://fable3.us.auth0.com/.well-known/jwks.json'
 
 export const handler = async (
   event: CustomAuthorizerEvent
@@ -87,21 +84,6 @@ async function verifyToken(authHeader: string): Promise<JwtPayload> {
       // we are only supporting RS256 so fail if this happens.
       throw new Error('Invalid authentication algorithm');
   }
-  console.log('jwks url', jwksUrl)
-  // secretProvider(req, header, payload, cb) 
-  /*var cert_get = expressJwtSecret({
-	    cache: true,
-      jwksUri: jwksUrl
-    });*/
-  //var cert = null; //todo:
-  //var cert = null;//await secret_func(null, jwt.header, jwt.payload, );
-  /*
-  var options =  {
-    // Validate the audience and the issuer.
-    audience: 'http://localhost:3000',
-    issuer: `https://fable3.us.auth0.com/`,
-    algorithms: ['RS256']
-  }*/
 
   return verify(token, cert, { algorithms: ['RS256'] }) as JwtPayload
 }
