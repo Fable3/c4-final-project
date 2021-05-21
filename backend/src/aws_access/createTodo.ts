@@ -1,12 +1,15 @@
 import * as AWS  from 'aws-sdk'
+//import * as AWSXRay  from 'aws-xray-sdk'
+const AWSXRay = require('aws-xray-sdk')
 import { CreateTodoRequest } from '../requests/CreateTodoRequest'
 import { TodoItem} from '../models/TodoItem'
 import * as uuid from 'uuid'
 
-const docClient = new AWS.DynamoDB.DocumentClient()
+const XAWS = AWSXRay.captureAWS(AWS)
+const docClient = new XAWS.DynamoDB.DocumentClient()
 const todosTable = process.env.TODOS_TABLE
 
-export const createTodoItem = async (userId: string, newTodo: CreateTodoRequest) : Promise<TodoItem> => {
+export const AWS_createTodoItem = async (userId: string, newTodo: CreateTodoRequest) : Promise<TodoItem> => {
     
     const todoId = uuid.v4()
 

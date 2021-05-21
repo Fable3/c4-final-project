@@ -1,14 +1,17 @@
 import * as AWS  from 'aws-sdk'
+const AWSXRay = require('aws-xray-sdk')
 
-const docClient = new AWS.DynamoDB.DocumentClient()
+const XAWS = AWSXRay.captureAWS(AWS)
+const docClient = new XAWS.DynamoDB.DocumentClient()
 const todosTable = process.env.TODOS_TABLE
 
-export const deleteTodoItem = async (todoId: string) => {
+export const AWS_deleteTodoItem = async (userId: string, todoId: string) => {
     
     await docClient.delete({
         TableName: todosTable,
         Key: {
-            todoId
+            todoId,
+            userId
         }
       }).promise()
 }

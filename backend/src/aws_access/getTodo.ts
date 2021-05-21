@@ -1,11 +1,13 @@
 import * as AWS  from 'aws-sdk'
+const AWSXRay = require('aws-xray-sdk')
 import { TodoItem} from '../models/TodoItem'
 
-const docClient = new AWS.DynamoDB.DocumentClient()
+const XAWS = AWSXRay.captureAWS(AWS)
+const docClient = new XAWS.DynamoDB.DocumentClient()
 const todosTable = process.env.TODOS_TABLE
 const userIdIndex = process.env.USER_ID_INDEX
 
-export const getTodoItems = async (userId: string) : Promise<TodoItem[]> => {
+export const AWS_getTodoItems = async (userId: string) : Promise<TodoItem[]> => {
     
     const result = await docClient.query({
         TableName: todosTable,

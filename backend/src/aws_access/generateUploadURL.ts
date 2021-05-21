@@ -1,12 +1,14 @@
 import * as AWS  from 'aws-sdk'
+const AWSXRay = require('aws-xray-sdk')
 import * as uuid from 'uuid'
 
-const docClient = new AWS.DynamoDB.DocumentClient()
+const XAWS = AWSXRay.captureAWS(AWS)
+const docClient = new XAWS.DynamoDB.DocumentClient()
 const todosTable = process.env.TODOS_TABLE
 const bucketName = process.env.IMAGES_S3_BUCKET
 const urlExpiration = process.env.SIGNED_URL_EXPIRATION
 
-const s3 = new AWS.S3({
+const s3 = new XAWS.S3({
     signatureVersion: 'v4'
   })
 
@@ -16,7 +18,7 @@ export interface CreateTodoRequest {
 }
   
 
-export const generateUploadURL = async (todoId: string) : Promise<string> => {
+export const AWS_generateUploadURL = async (userId: string, todoId: string) : Promise<string> => {
     const imageId = uuid.v4()
     const uploadURL : string = s3.getSignedUrl('putObject', {
         Bucket: bucketName,
@@ -27,7 +29,8 @@ export const generateUploadURL = async (todoId: string) : Promise<string> => {
     await docClient.update({
         TableName: todosTable,
         Key: {
-            todoId
+            todoId,
+            userId
         },
         UpdateExpression: "set attachmentUrl = :attachmentUrl",
         ExpressionAttributeValues: {

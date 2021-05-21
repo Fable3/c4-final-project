@@ -102,6 +102,30 @@ After deployment, 2-character long name was denied, 3 character was accepted.
 
 Finally, I've replaced console.log with Winston logger, which was already used in the auth lambda.
 
+#### Reviewer suggestions
+
+Changes I made to reviewers suggestion:
+
+- According to https://aws.amazon.com/blogs/database/choosing-the-right-dynamodb-partition-key/ I was following the anti-pattern of partition key. I've changed the HASH to userId to have all the data for a specific user in the same partition. The sort key was then the todoId, together creating a complex key.
+- Created business_logic/todoItem.ts file to connect lambda functions to AWS specific functions in the aws_access folder instead of calling them directly.
+- Using aws-xray-sdk for tracing.
+
+I got an error message for the following code:
+
+`TS2339: Property 'DocumentClient' does not exist on type 'PatchedAWSClientConstructor<ClientConfiguration, typeof DynamoDB>'`
+
+```typescript
+import * as AWSXRay  from 'aws-xray-sdk'
+const XAWS = AWSXRay.captureAWS(AWS)
+const docClient = new XAWS.DynamoDB.DocumentClient()
+```
+
+There seem to be a typescript error with the sdk, changed "import" to "require":
+
+```typescript
+const AWSXRay = require('aws-xray-sdk')
+```
+
 ## Project Rubric
 
 #### Functionality
@@ -155,6 +179,8 @@ Code of Lambda functions is split into multiple files/classes. The business logi
 ```
 
 The aws_access folder contains the database access and file storage routines.
+
+The business_logic/todoItems.ts file simply forwards the calls to AWS specific functions.
 
 ```
 Code is implemented using async/await and Promises without using callbacks.
@@ -287,6 +313,10 @@ Application has at least some of the following:
 
 I've added several logs during development, it helped me greatly since I almost every function had to be debugged multiple times, as I've described the process in the development. For metrics, AWS already provides sufficient metric, I couldn't think of anything useful to measure beyond that.
 
+After enabling AWS X-Ray, here's a screenshot of the X-Ray console:
+
+![AWS X-Ray](aws_xray.png)
+
 ```
 HTTP requests are validated
 Incoming HTTP requests are validated either in Lambda handlers or using request validation in API Gateway. The latter can be done either using the serverless-reqvalidator-plugin or by providing request schemas in function definitions.
@@ -345,18 +375,14 @@ Data is stored in a table with a composite key.
         KeyType: RANGE
 ```
 
-The starter code suggested creating an index. Query through userId is done with using this index. Creating a composite key with anything else would break the deleteItem functionality, since it needs all keys to uniquely identify a record. I've ran into this problem when I tried to add dueDate as sort key.
+After review, userId was chosen as partitionKey and todoId as sort key:
 
 ```yaml
         KeySchema:
-          - AttributeName: todoId
+          - AttributeName: userId
             KeyType: HASH
-        TableName: ${self:provider.environment.TODOS_TABLE}
-        GlobalSecondaryIndexes:
-          - IndexName: ${self:provider.environment.USER_ID_INDEX}
-            KeySchema:
-              - AttributeName: userId
-                KeyType: HASH
+          - AttributeName: todoId
+            KeyType: RANGE
 ```
 
 

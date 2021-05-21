@@ -4,7 +4,7 @@ import { APIGatewayProxyEvent, APIGatewayProxyHandler, APIGatewayProxyResult } f
 
 import { CreateTodoRequest } from '../../requests/CreateTodoRequest'
 import { getUserId } from '../utils'
-import { createTodoItem } from '../../aws_access/createTodo'
+import { createTodoItem } from '../../business_logic/todoItems'
 
 //import * as AWS  from 'aws-sdk' -> moved to aws_access
 import { createLogger } from '../../utils/logger'
@@ -49,9 +49,7 @@ export const handler: APIGatewayProxyHandler = async (event: APIGatewayProxyEven
     }
   }
 
-  const db_result = {
-    item: await createTodoItem(userId, newTodo)
-  }
+  const new_item = { item: await createTodoItem(userId, newTodo) }
   
   // DONE: Implement creating a new TODO item
   /* Mock data:
@@ -71,6 +69,6 @@ export const handler: APIGatewayProxyHandler = async (event: APIGatewayProxyEven
     headers: {
       'Access-Control-Allow-Origin': '*'
     },
-    body: JSON.stringify(db_result)
+    body: JSON.stringify(new_item)
   }
 }
