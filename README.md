@@ -20,7 +20,7 @@ The frontend now shows the mock data. Interestingly, the delete button works alr
 
 Since I log all functions, I could already check in CloudWatch that all functions receive correct parameters. Authorization is not tested at this moment yet, because it's not yet configured. The UserId can be read from the authorization header, so next I implemented the functions using DynamoDB table.
 
-First function has to be of course the createTodoItem. I've moved the DynamoDB specific functions to a new file, business_logic/createTodoItem.ts. When testing the new functionality, I got CORS error, but inspecting the headers revealed `InternalServerErrorException` in the header, so the CORS header was only missing because of an earlier exception.
+First function has to be of course the createTodoItem. I've moved the DynamoDB specific functions to a new file, aws_access/createTodoItem.ts. When testing the new functionality, I got CORS error, but inspecting the headers revealed `InternalServerErrorException` in the header, so the CORS header was only missing because of an earlier exception.
 
 From CloudWatch: `"errorMessage": "User: arn:aws:sts::447830847150:assumed-role/serverless-todo-app-dev-us-east-1-lambdaRole/serverless-todo-app-dev-CreateTodo is not authorized to perform: dynamodb:PutItem on resource: arn:aws:dynamodb:us-east-1:447830847150:table/Todos-dev"`
 
@@ -66,7 +66,9 @@ The solution was to include the RANGE key as well to make the record unique, whi
 
 After implementing UpdateTodo, it didn't update the database, and I couldn't find any error message in CloudWatch. Searching the Knowledge Base I found that "name" attribute was replaced with ExpressionAttributeName, so I implemented it as well, but it didn't help. Logging the result revealed that I simply forgot to add ".promise()" to the end of the update call. After fixing, I could see the "done" flag updating in DynamoDB on AWS Console.
 
-The last function was `GenerateUploadUrl`, I used the signed URL creation routine from the course 5, and the update from UpdateTodo in one function in `business_logic/GenerateUploadURL.ts`. I've set both dynamodb:UpdateItem and s3:PutObject in the iamRoleStatements of the lamda function. This one worked on first try.
+The last function was `GenerateUploadUrl`, I used the signed URL creation routine from the course 5, and the update from UpdateTodo in one function in `aws_access/GenerateUploadURL.ts`. I've set both dynamodb:UpdateItem and s3:PutObject in the iamRoleStatements of the lamda function. This one worked on first try.
+
+Next step was to enable authorization for all functions. The first try reported `error:0909006C:PEM routines:get_name:no start line` in CloudWatch. I've fixed the new-lines in the certificate and it was working afterwards.
 
 ## Project Rubric
 
@@ -101,6 +103,186 @@ A user needs to authenticate in order to use an application.
 ```
 
 Authentication is implemented in backend/src/lamda/auth/auth0authorization.ts
+
+#### Code Base
+
+```
+The code is split into multiple layers separating business logic from I/O related code.
+Code of Lambda functions is split into multiple files/classes. The business logic of an application is separated from code for database access, file storage, and code related to AWS Lambda.
+```
+
+The aws_access folder contains the database access and file storage routines.
+
+```
+Code is implemented using async/await and Promises without using callbacks.
+To get results of asynchronous operations, a student is using async/await constructs instead of passing callbacks.
+```
+
+An example from getTodoItems:
+
+```typescript
+const result = await docClient.query({
+        TableName: todosTable,
+        IndexName: userIdIndex,
+        KeyConditionExpression: 'userId = :userId',
+        ExpressionAttributeValues: {
+          ':userId': userId
+        }
+      }).promise()
+    
+    return result.Items as TodoItem[]
+```
+
+#### Best Practices
+
+```
+All resources in the application are defined in the "serverless.yml" file
+All resources needed by an application are defined in the "serverless.yml". A developer does not need to create them manually using AWS console.
+```
+
+Everything is defined here:
+
+```yaml
+resources:
+  Resources:
+    TodosTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        AttributeDefinitions:
+          - AttributeName: todoId
+            AttributeType: S
+          - AttributeName: userId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: todoId
+            KeyType: HASH
+        BillingMode: PAY_PER_REQUEST
+        TableName: ${self:provider.environment.TODOS_TABLE}
+        GlobalSecondaryIndexes:
+          - IndexName: ${self:provider.environment.USER_ID_INDEX}
+            KeySchema:
+              - AttributeName: userId
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL # What attributes will be copied to an index
+
+    AttachmentsBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: ${self:provider.environment.IMAGES_S3_BUCKET}
+        CorsConfiguration:
+          CorsRules:
+            -
+              AllowedOrigins:
+                - '*'
+              AllowedHeaders:
+                - '*'
+              AllowedMethods:
+                - GET
+                - PUT
+                - POST
+                - DELETE
+                - HEAD
+              MaxAge: 3000
+
+    BucketPolicy:
+      Type: AWS::S3::BucketPolicy
+      Properties:
+        PolicyDocument:
+          Id: MyPolicy
+          Version: "2012-10-17"
+          Statement:
+            - Sid: PublicReadForGetBucketObjects
+              Effect: Allow
+              Principal: '*'
+              Action: 's3:GetObject'
+              Resource: 'arn:aws:s3:::${self:provider.environment.IMAGES_S3_BUCKET}/*'
+        Bucket: !Ref AttachmentsBucket
+```
+
+The naming convention is prepared for integration test with stage option (default: dev):
+
+```yaml
+  stage: ${opt:stage, 'dev'}
+  environment:
+    TODOS_TABLE: Todos-${self:provider.stage}
+    IMAGES_S3_BUCKET: c4-final-images-033212455158-${self:provider.stage}
+```
+
+
+
+```
+Each function has its own set of permissions.
+Instead of defining all permissions under provider/iamRoleStatements, permissions are defined per function in the functions section of the "serverless.yml".
+```
+
+
+
+```
+Application has sufficient monitoring.
+Application has at least some of the following:
+- Distributed tracing is enabled
+- It has a sufficient amount of log statements
+- It generates application level metrics
+```
+
+
+
+```
+HTTP requests are validated
+Incoming HTTP requests are validated either in Lambda handlers or using request validation in API Gateway. The latter can be done either using the serverless-reqvalidator-plugin or by providing request schemas in function definitions.
+```
+
+#### Architecture
+
+```
+Data is stored in a table with a composite key.
+1:M (1 to many) relationship between users and TODO items is modeled using a DynamoDB table that has a composite key with both partition and sort keys. Should be defined similar to this:
+
+   KeySchema:
+      - AttributeName: partitionKey
+        KeyType: HASH
+      - AttributeName: sortKey
+        KeyType: RANGE
+```
+
+The starter code suggested creating an index. Query through userId is done with using this index. Creating a composite key with anything else would break the deleteItem functionality, since it needs all keys to uniquely identify a record. I've ran into this problem when I tried to add dueDate as sort key.
+
+```yaml
+        KeySchema:
+          - AttributeName: todoId
+            KeyType: HASH
+        TableName: ${self:provider.environment.TODOS_TABLE}
+        GlobalSecondaryIndexes:
+          - IndexName: ${self:provider.environment.USER_ID_INDEX}
+            KeySchema:
+              - AttributeName: userId
+                KeyType: HASH
+```
+
+
+
+```
+Scan operation is not used to read data from a database.
+TODO items are fetched using the "query()" method and not "scan()" method (which is less efficient on large datasets)
+```
+
+This is how TODO items are fetched in backend/src/aws_access/getTodo.ts:
+
+```typescript
+ const result = await docClient.query({
+        TableName: todosTable,
+        IndexName: userIdIndex,
+        KeyConditionExpression: 'userId = :userId',
+        ExpressionAttributeValues: {
+          ':userId': userId
+        }
+      }).promise()
+    
+    return result.Items as TodoItem[]
+```
+
+
 
 # Functionality of the application
 
